@@ -14,11 +14,15 @@ public class PaymentEntity {
   @Enumerated(EnumType.STRING)
   private PaymentStatus status;
 
+  @Enumerated(EnumType.STRING)
+  private PaymentStatus paymentValidationStatus;
+
   protected PaymentEntity() {}
 
-  public PaymentEntity(UUID id, PaymentStatus status) {
+  public PaymentEntity(UUID id, PaymentStatus status, PaymentStatus paymentValidationStatus) {
     this.id = id;
     this.status = status;
+    this.paymentValidationStatus = paymentValidationStatus;
   }
 
   public UUID getId() {
@@ -31,5 +35,13 @@ public class PaymentEntity {
 
   public void setStatus(PaymentStatus status) {
     this.status = status;
+  }
+
+  public PaymentStatus getPaymentValidationStatus() {
+    return paymentValidationStatus;
+  }
+
+  public void setPaymentValidationStatus(PaymentStatus paymentValidationStatus) {
+    this.paymentValidationStatus = paymentValidationStatus;
   }
 }

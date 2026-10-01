@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "TransactionValidationRequest",
+  "namespace": "com.korneliawolniak.paymentprocessing.avro",
+  "fields": [
+    { "name": "transactionId", "type": "string" },
+    { "name": "paymentId", "type": "string" },
+    { "name": "creditorName", "type": "string" },
+    { "name": "creditorAccountNumber", "type": "string" },
+    { "name": "amount", "type": "string" },
+    { "name": "currency", "type": "string" }
+  ]
+}
