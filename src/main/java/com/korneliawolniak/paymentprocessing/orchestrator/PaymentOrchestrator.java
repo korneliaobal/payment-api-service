@@ -17,6 +17,8 @@ import com.korneliawolniak.paymentprocessing.persistence.TransactionEntity;
 import com.korneliawolniak.paymentprocessing.persistence.TransactionRepository;
 import com.korneliawolniak.paymentprocessing.service.PaymentStatusAggregator;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +32,7 @@ public class PaymentOrchestrator {
   private final TransactionValidationRequestMapper transactionValidationRequestMapper;
   private final TransactionValidationRequestPublisher transactionValidationRequestPublisher;
   private final PaymentStatusAggregator paymentStatusAggregator;
+  private static final Logger log = LoggerFactory.getLogger(PaymentOrchestrator.class);
 
   public PaymentOrchestrator(
       PaymentRepository paymentRepository,
@@ -77,7 +80,7 @@ public class PaymentOrchestrator {
       transactionValidationRequestPublisher.publish(request);
     }
 
-    System.out.println("Saved payment: " + paymentId + " with status PENDING");
+    log.info("Saved payment: {} with status PENDING", paymentId);
   }
 
   @KafkaListener(topics = "payment-validation-result", groupId = "payment-orchestrator")
@@ -97,7 +100,7 @@ public class PaymentOrchestrator {
 
     paymentStatusAggregator.updateFinalPaymentStatus(paymentId);
 
-    System.out.println("Updated payment validation status: " + paymentId + " to " + status);
+    log.info("Updated payment validation status: {} to {}", paymentId, status);
   }
 
   @KafkaListener(topics = "transaction-validation-result", groupId = "payment-orchestrator")
@@ -119,6 +122,6 @@ public class PaymentOrchestrator {
 
     paymentStatusAggregator.updateFinalPaymentStatus(transaction.getPaymentId());
 
-    System.out.println("Updated transaction validation status: " + transactionId + " to " + status);
+    log.info("Updated transaction validation status: {} to {}", transactionId, status);
   }
 }

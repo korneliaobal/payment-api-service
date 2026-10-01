@@ -3,6 +3,9 @@ package com.korneliawolniak.paymentprocessing.checker;
 import com.korneliawolniak.paymentprocessing.avro.PaymentValidationRequest;
 import com.korneliawolniak.paymentprocessing.avro.PaymentValidationResult;
 import com.korneliawolniak.paymentprocessing.kafka.PaymentValidationResultPublisher;
+import com.korneliawolniak.paymentprocessing.orchestrator.PaymentOrchestrator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +13,7 @@ import org.springframework.stereotype.Component;
 public class PaymentChecker {
 
   private final PaymentValidationResultPublisher paymentValidationResultPublisher;
+  private static final Logger log = LoggerFactory.getLogger(PaymentOrchestrator.class);
 
   public PaymentChecker(PaymentValidationResultPublisher paymentValidationResultPublisher) {
     this.paymentValidationResultPublisher = paymentValidationResultPublisher;
@@ -29,7 +33,7 @@ public class PaymentChecker {
 
     paymentValidationResultPublisher.publish(result);
 
-    System.out.println("Payment " + request.getPaymentId() + " validation result: " + status);
+    log.info("Payment {} validation result: {}", request.getPaymentId(), status);
   }
 
   private boolean isValid(PaymentValidationRequest request) {
