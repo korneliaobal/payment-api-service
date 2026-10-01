@@ -3,13 +3,17 @@ package com.korneliawolniak.paymentprocessing.checker;
 import com.korneliawolniak.paymentprocessing.avro.TransactionValidationRequest;
 import com.korneliawolniak.paymentprocessing.avro.TransactionValidationResult;
 import com.korneliawolniak.paymentprocessing.kafka.TransactionValidationResultPublisher;
+import com.korneliawolniak.paymentprocessing.orchestrator.PaymentOrchestrator;
 import java.math.BigDecimal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
 public class TransactionChecker {
   private final TransactionValidationResultPublisher transactionValidationResultPublisher;
+  private static final Logger log = LoggerFactory.getLogger(PaymentOrchestrator.class);
 
   public TransactionChecker(
       TransactionValidationResultPublisher transactionValidationResultPublisher) {
@@ -31,8 +35,7 @@ public class TransactionChecker {
 
     transactionValidationResultPublisher.publish(result);
 
-    System.out.println(
-        "Transaction " + request.getTransactionId() + " validation result: " + status);
+    log.info("Transaction {} validation result: {}", request.getTransactionId(), status);
   }
 
   private boolean isValid(TransactionValidationRequest request) {
