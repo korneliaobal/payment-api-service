@@ -15,7 +15,7 @@ import com.korneliawolniak.paymentprocessing.persistence.PaymentRepository;
 import com.korneliawolniak.paymentprocessing.persistence.PaymentStatus;
 import com.korneliawolniak.paymentprocessing.persistence.TransactionEntity;
 import com.korneliawolniak.paymentprocessing.persistence.TransactionRepository;
-import java.util.List;
+import com.korneliawolniak.paymentprocessing.service.PaymentStatusAggregator;
 import java.util.UUID;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -29,6 +29,7 @@ public class PaymentOrchestrator {
   private final PaymentValidationRequestPublisher paymentValidationRequestPublisher;
   private final TransactionValidationRequestMapper transactionValidationRequestMapper;
   private final TransactionValidationRequestPublisher transactionValidationRequestPublisher;
+  private final PaymentStatusAggregator paymentStatusAggregator;
 
   public PaymentOrchestrator(
       PaymentRepository paymentRepository,
@@ -36,13 +37,15 @@ public class PaymentOrchestrator {
       PaymentValidationRequestMapper paymentValidationRequestMapper,
       PaymentValidationRequestPublisher paymentValidationRequestPublisher,
       TransactionValidationRequestMapper transactionValidationRequestMapper,
-      TransactionValidationRequestPublisher transactionValidationRequestPublisher) {
+      TransactionValidationRequestPublisher transactionValidationRequestPublisher,
+      PaymentStatusAggregator paymentStatusAggregator) {
     this.paymentRepository = paymentRepository;
     this.transactionRepository = transactionRepository;
     this.paymentValidationRequestMapper = paymentValidationRequestMapper;
     this.paymentValidationRequestPublisher = paymentValidationRequestPublisher;
     this.transactionValidationRequestMapper = transactionValidationRequestMapper;
     this.transactionValidationRequestPublisher = transactionValidationRequestPublisher;
+    this.paymentStatusAggregator = paymentStatusAggregator;
   }
 
   @KafkaListener(topics = "payment-created", groupId = "payment-orchestrator")
@@ -92,7 +95,7 @@ public class PaymentOrchestrator {
 
     paymentRepository.save(payment);
 
-    updateFinalPaymentStatus(paymentId);
+    paymentStatusAggregator.updateFinalPaymentStatus(paymentId);
 
     System.out.println("Updated payment validation status: " + paymentId + " to " + status);
   }
@@ -114,45 +117,8 @@ public class PaymentOrchestrator {
 
     transactionRepository.save(transaction);
 
-    updateFinalPaymentStatus(transaction.getPaymentId());
+    paymentStatusAggregator.updateFinalPaymentStatus(transaction.getPaymentId());
 
     System.out.println("Updated transaction validation status: " + transactionId + " to " + status);
-  }
-
-  private void updateFinalPaymentStatus(UUID paymentId) {
-    PaymentEntity payment =
-        paymentRepository
-            .findById(paymentId)
-            .orElseThrow(() -> new IllegalStateException("Payment not found: " + paymentId));
-
-    List<TransactionEntity> transactions = transactionRepository.findByPaymentId(paymentId);
-
-    if (payment.getPaymentValidationStatus() == PaymentStatus.NOT_OK) {
-      payment.setStatus(PaymentStatus.NOT_OK);
-      paymentRepository.save(payment);
-      return;
-    }
-
-    boolean anyTransactionNotOk =
-        transactions.stream()
-            .anyMatch(transaction -> transaction.getStatus() == PaymentStatus.NOT_OK);
-
-    if (anyTransactionNotOk) {
-      payment.setStatus(PaymentStatus.NOT_OK);
-      paymentRepository.save(payment);
-      return;
-    }
-
-    boolean paymentValidationFinished = payment.getPaymentValidationStatus() == PaymentStatus.OK;
-
-    boolean allTransactionsOk =
-        !transactions.isEmpty()
-            && transactions.stream()
-                .allMatch(transaction -> transaction.getStatus() == PaymentStatus.OK);
-
-    if (paymentValidationFinished && allTransactionsOk) {
-      payment.setStatus(PaymentStatus.OK);
-      paymentRepository.save(payment);
-    }
   }
 }
