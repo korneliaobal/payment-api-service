@@ -13,10 +13,10 @@
     </parent>
 
     <groupId>com.korneliawolniak</groupId>
-    <artifactId>payment-processing-backend</artifactId>
+    <artifactId>payment-api-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 
-    <name>payment-processing-backend</name>
+    <name>ppayment-api-service</name>
     <description>Backend service for payment file processing and transfer scheduling</description>
 
     <properties>
