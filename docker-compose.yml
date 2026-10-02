@@ -14,7 +14,6 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
 
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
@@ -30,6 +29,12 @@ services:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8081'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   postgres:
     image: postgres:17
@@ -42,6 +47,56 @@ services:
       POSTGRES_PASSWORD: payment_password
     volumes:
       - payment-postgres-data:/var/lib/postgresql/data
+
+  payment-api-service:
+    build:
+      context: .
+    container_name: payment-api-service
+    depends_on:
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+  payment-orchestrator-service:
+    build:
+      context: ../payment-orchestrator-service
+    container_name: payment-orchestrator-service
+    depends_on:
+      - kafka
+      - schema-registry
+      - postgres
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment_processing
+      SPRING_DATASOURCE_USERNAME: payment_user
+      SPRING_DATASOURCE_PASSWORD: payment_password
+
+  payment-checker-service:
+    build:
+      context: ../payment-checker-service
+    container_name: payment-checker-service
+    depends_on:
+      - kafka
+      - schema-registry
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+  transaction-checker-service:
+    build:
+      context: ../transaction-checker-service
+    container_name: transaction-checker-service
+    depends_on:
+      - kafka
+      - schema-registry
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
 
 volumes:
   payment-postgres-data:
