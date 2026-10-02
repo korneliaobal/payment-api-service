@@ -78,6 +78,8 @@ services:
   payment-orchestrator-service:
     build:
       context: ../payment-orchestrator-service
+      secrets:
+        - maven_settings
     container_name: payment-orchestrator-service
     depends_on:
       kafka:
@@ -96,6 +98,8 @@ services:
   payment-checker-service:
     build:
       context: ../payment-checker-service
+      secrets:
+        - maven_settings
     container_name: payment-checker-service
     depends_on:
       kafka:
@@ -109,6 +113,8 @@ services:
   transaction-checker-service:
     build:
       context: ../transaction-checker-service
+      secrets:
+        - maven_settings
     container_name: transaction-checker-service
     depends_on:
       kafka:
@@ -121,3 +127,7 @@ services:
 
 volumes:
   payment-postgres-data:
+
+secrets:
+  maven_settings:
+    file: ~/.m2/settings.xml
