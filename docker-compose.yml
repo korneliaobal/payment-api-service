@@ -18,11 +18,19 @@ services:
 
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
 
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
   schema-registry:
     image: confluentinc/cp-schema-registry:8.3.0
     container_name: payment-schema-registry
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     ports:
       - "8081:8081"
     environment:
@@ -47,6 +55,12 @@ services:
       POSTGRES_PASSWORD: payment_password
     volumes:
       - payment-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U payment_user -d payment_processing" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   payment-api-service:
     build:
@@ -66,9 +80,12 @@ services:
       context: ../payment-orchestrator-service
     container_name: payment-orchestrator-service
     depends_on:
-      - kafka
-      - schema-registry
-      - postgres
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
@@ -81,8 +98,10 @@ services:
       context: ../payment-checker-service
     container_name: payment-checker-service
     depends_on:
-      - kafka
-      - schema-registry
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
@@ -92,8 +111,10 @@ services:
       context: ../transaction-checker-service
     container_name: transaction-checker-service
     depends_on:
-      - kafka
-      - schema-registry
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_KAFKA_PROPERTIES_SCHEMA_REGISTRY_URL: http://schema-registry:8081
