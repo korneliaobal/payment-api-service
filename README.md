@@ -19,6 +19,7 @@ Infrastructure:
 
 - Apache Kafka
 - Confluent Schema Registry
+- Kafbat UI (read-only Kafka browser)
 - PostgreSQL
 - Docker Compose
 
@@ -94,7 +95,7 @@ Payment processing/
 
 Docker Compose supplies the sibling `payment-contracts` directory as a named build context. Each Kafka consumer image generates and installs the local contract JAR before building its service. Local Compose builds do not require GitHub Packages credentials and always include the current validation fields.
 
-For services run directly through Maven, first run `./mvnw install` in `payment-contracts`, then build the services. The default standalone Docker build and existing CI use the published Maven package with BuildKit credentials. Publish updated contracts before running consumer CI against changes that introduce new contract methods; the contracts repository already has a publish workflow. Local Compose uses `CONTRACTS_SOURCE=local` and does not publish anything.
+For services run directly through Maven, first run `./mvnw install` in `payment-contracts`, then build the services. The default standalone Docker build uses the published Maven package with BuildKit credentials. Consumer CI checks out a pinned contracts revision, installs it before testing, and uses the same source directory for its Docker build. Update the pinned revision when changing the shared contract API; the contracts repository also has a package publishing workflow. Local Compose uses `CONTRACTS_SOURCE=local` and does not publish anything.
 
 ## Running the system
 
@@ -114,6 +115,7 @@ Docker Compose starts:
 
 - Kafka
 - Schema Registry
+- Kafbat UI
 - PostgreSQL
 - payment-api-service
 - payment-orchestrator-service
@@ -127,6 +129,30 @@ docker ps
 ```
 
 Kafka, Schema Registry and PostgreSQL should report a `healthy` status.
+
+## Inspecting Kafka messages
+
+Open http://localhost:8083 to access Kafbat UI. The `ObalFlow` cluster is preconfigured with Kafka and Schema Registry, allowing Avro messages to be decoded. The panel is read-only and exposed on the local machine only. The image version is pinned to `v1.5.0`.
+
+To start only the panel and its Kafka/Schema Registry dependencies, run from `payment-api-service`:
+
+```bash
+docker compose up -d kafka-ui
+```
+
+Start the backend services and frontend separately when you want to inspect a new payment. After submitting a payment:
+
+1. Open **Topics**, select `payment-created`, then open **Messages**.
+2. Read messages from the beginning or a timestamp before the submission; use **String** for the key and **SchemaRegistry** for the value if automatic selection does not decode them.
+3. Find the payment ID in the message key. Follow the same ID in `payment-validation-request`, `transaction-validation-request`, `payment-validation-result`, and `transaction-validation-result`.
+4. Inspect the result payloads for validation status and `reasonCodes`. A payment with multiple transactions has multiple transaction validation messages.
+5. Open **Consumer Groups** to inspect the application consumers and their lag, or **Schema Registry** to inspect the Avro schemas.
+
+Kafbat UI displays messages per topic; it does not automatically create an end-to-end trace diagram. Topics and application consumer groups appear after the relevant services start and publish or consume events.
+
+Stop only the panel with `docker compose stop kafka-ui`. The normal `docker compose down` command stops the panel together with the rest of the stack.
+
+References: [Kafbat configuration](https://ui.docs.kafbat.io/configuration/misc-configuration-properties) and [Schema Registry deserialization](https://ui.docs.kafbat.io/configuration/serialization-serde/built-in-serdes).
 
 ## Running the frontend
 
@@ -203,6 +229,25 @@ GET /api/payment-history?page=0&size=20&status=NOT_OK
 
 History is read from PostgreSQL, not browser storage. Open a payment's status URL to read its individual transactions and reasons. Existing rows are retained; details that were never stored cannot be reconstructed.
 
+## Authorization persistence
+
+Payment details remain in `payment_entity`; transaction details remain in `transaction_entity`. Current statuses live in two separate tables:
+
+- `payment_authorizations`: `payment_id` (primary key and foreign key), `status`, and `payment_validation_status`.
+- `transaction_authorizations`: `transaction_id` (primary key and foreign key), `status`, and `reason_codes`.
+
+Each payment or transaction has one authorization record. These tables contain the latest automatic validation decision, not a status history or manual approval. Payment rejection reason codes remain in `payment_entity`; transaction rejection reason codes live in `transaction_authorizations`. The status and history API response formats remain unchanged.
+
+The first migration creates the original schema for a new database. An existing database is baselined at version 1, then version 2 copies statuses and removes their old columns. Version 3 copies transaction rejection reason codes into `transaction_authorizations` and removes their original column. If a transaction has no authorization record, version 3 creates one with `PENDING` status before copying its reason codes. A legacy null status becomes `PENDING`. Schema changes are versioned with Flyway; Hibernate validates the schema instead of altering it.
+
+Rebuild and restart the orchestrator to apply the migration:
+
+```bash
+docker compose up -d --build payment-orchestrator-service
+```
+
+Do not run an older orchestrator image after the migration: it expects the removed status columns. Payment creation, validation updates, and authorization writes use database transactions. Updates for the same payment are serialized using a row lock before final status aggregation.
+
 ## Validation
 
 Payment-level validation includes rules such as:
@@ -229,7 +274,7 @@ The first stage builds the Spring Boot application using Java 21 and Maven Wrapp
 
 The second stage contains only the Java runtime and the generated application JAR.
 
-For individual consumer image builds using local contracts, provide `--build-arg CONTRACTS_SOURCE=local --build-context payment-contracts=../payment-contracts`. Compose supplies this context automatically. Database columns are added by the existing Hibernate `ddl-auto=update` configuration used in this demonstration; existing records and the PostgreSQL volume are preserved.
+For individual consumer image builds using local contracts, provide `--build-arg CONTRACTS_SOURCE=local --build-context payment-contracts=../payment-contracts`. Compose supplies this context automatically. The orchestrator uses Flyway migrations and Hibernate `ddl-auto=validate`. Existing payment and transaction statuses are copied into `payment_authorizations` and `transaction_authorizations` before their old columns are removed. Existing records and the PostgreSQL volume are preserved.
 
 ## CI
 
