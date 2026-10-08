@@ -44,6 +44,20 @@ services:
       retries: 20
       start_period: 10s
 
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    container_name: payment-kafka-ui
+    ports:
+      - "127.0.0.1:8083:8080"
+    depends_on:
+      schema-registry:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ObalFlow
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+      KAFKA_CLUSTERS_0_READONLY: "true"
+
   postgres:
     image: postgres:17
     container_name: payment-postgres
