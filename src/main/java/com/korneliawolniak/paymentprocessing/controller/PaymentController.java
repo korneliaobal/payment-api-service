@@ -19,7 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/payments")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = {"http://localhost:4200", "https://obal-flow.up.railway.app"})
 public class PaymentController {
 
   private final PaymentFileParser paymentFileParser;

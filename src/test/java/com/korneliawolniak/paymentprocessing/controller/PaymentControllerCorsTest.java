@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -17,25 +19,24 @@ import org.springframework.test.web.servlet.MockMvc;
 class PaymentControllerCorsTest {
   @Autowired private MockMvc mvc;
 
-  @Test
-  void allowsLocalFrontendPreflightForUpload() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"http://localhost:4200", "https://obal-flow.up.railway.app"})
+  void allowsConfiguredFrontendPreflightForUpload(String origin) throws Exception {
     mvc.perform(
             options("/api/payments/upload")
-                .header(HttpHeaders.ORIGIN, "http://localhost:4200")
+                .header(HttpHeaders.ORIGIN, origin)
                 .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
         .andExpect(status().isOk())
-        .andExpect(
-            header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"))
+        .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, origin))
         .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "POST"));
   }
 
-  @Test
-  void exposesUploadErrorsToTheAllowedFrontend() throws Exception {
-    mvc.perform(
-            multipart("/api/payments/upload").header(HttpHeaders.ORIGIN, "http://localhost:4200"))
+  @ParameterizedTest
+  @ValueSource(strings = {"http://localhost:4200", "https://obal-flow.up.railway.app"})
+  void exposesUploadErrorsToTheAllowedFrontend(String origin) throws Exception {
+    mvc.perform(multipart("/api/payments/upload").header(HttpHeaders.ORIGIN, origin))
         .andExpect(status().isBadRequest())
-        .andExpect(
-            header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:4200"));
+        .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, origin));
   }
 
   @Test
